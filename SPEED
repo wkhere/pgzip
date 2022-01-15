@@ -1,0 +1,13 @@
+Comparing C gzip and golang pgzip.
+
+On my laptop,
+compression speed is where pgzip is faster for sure for ~38MB input,
+probably for smaller too.
+
+Decompression, ~100MB of input is where pgzip starts to be faster.
+
+
+Note: pigz decompression is faster. Still, this pgzip can shine where
+there is no way to install or compile pigz, as Go cross-compilation
+is a piece of cake.
+Surprisingly, pgzip compression is faster than pigz!

@@ -1,4 +1,6 @@
-pgz
-===
+pgzip
+=====
 
-Command line for github.com/klauspost/pgzip.
+Command line for [klauspost/pgzip].
+
+[klauspost/pgzip]: https://github.com/klauspost/pgzip

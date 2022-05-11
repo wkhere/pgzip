@@ -1,4 +1,4 @@
-// Xflate decompresses or compresses deflate stream.
+// pgzip decompresses or compresses gzip stream in parallel mode.
 package main
 
 import (

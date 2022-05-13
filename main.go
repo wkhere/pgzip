@@ -16,19 +16,22 @@ const (
 )
 
 type config struct {
-	decompress    bool
+	compress      bool
 	compressLevel int
 }
 
 func parseFlags(args []string) config {
-	var conf config
-	var help bool
+	var (
+		conf       config
+		decompress bool
+		help       bool
+	)
 
 	flag := pflag.NewFlagSet("flags", pflag.ContinueOnError)
 	flag.SortFlags = false
 
-	flag.BoolVarP(&conf.decompress, "decompress", "d", false,
-		"decompress (default false -- means compress)")
+	flag.BoolVarP(&conf.compress, "compress", "z", true, "compress")
+	flag.BoolVarP(&decompress, "decompress", "d", false, "decompress")
 	flag.IntVarP(&conf.compressLevel, "level", "n", 6,
 		"compress level, -2..9")
 	flag.BoolVarP(&help, "help", "h", false,
@@ -40,13 +43,20 @@ func parseFlags(args []string) config {
 
 	err := flag.Parse(args)
 	if err != nil {
-		flag.Usage()
-		os.Exit(2)
+		die(2, err)
 	}
 	if help {
 		flag.SetOutput(os.Stdout)
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	if flag.Changed("compress") && flag.Changed("decompress") &&
+		conf.compress == decompress {
+		die(2, "conflicting flags -z and -d")
+	}
+	if flag.Changed("decompress") {
+		conf.compress = !decompress
 	}
 
 	return conf
@@ -56,34 +66,37 @@ func main() {
 	conf := parseFlags(os.Args[1:])
 
 	switch {
-	case !conf.decompress:
+	case conf.compress:
 		w, err := pgzip.NewWriterLevel(os.Stdout, conf.compressLevel)
 		if err != nil {
-			die(fmt.Errorf("failed creating pgzip writer: %v", err))
+			die(1, "failed creating pgzip writer:", err)
 		}
 		_, err = io.Copy(w, os.Stdin)
 		if err != nil {
-			die(fmt.Errorf("compress: %v", err))
+			die(1, "compress:", err)
 		}
 		err = w.Close()
 		if err != nil {
-			die(fmt.Errorf("compress closing: %v", err))
+			die(1, "compress closing:", err)
 		}
 
-	default:
+	case !conf.compress:
 		r, err := pgzip.NewReader(os.Stdin)
 		if err != nil {
-			die(fmt.Errorf("failed creating pgzip reader: %v", err))
+			die(1, "failed creating pgzip reader:", err)
 		}
 		defer r.Close()
 		_, err = io.Copy(os.Stdout, r)
 		if err != nil {
-			die(fmt.Errorf("decompress: %v", err))
+			die(1, "decompress: %v", err)
 		}
 	}
 }
 
-func die(err error) {
-	fmt.Fprintln(os.Stderr, prog+":", err)
-	os.Exit(1)
+func die(exitcode int, msgs ...interface{}) {
+	if len(msgs) > 0 {
+		fmt.Fprint(os.Stderr, prog, ": ")
+		fmt.Fprintln(os.Stderr, msgs...)
+	}
+	os.Exit(exitcode)
 }

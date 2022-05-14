@@ -20,9 +20,8 @@ type config struct {
 	compressLevel int
 }
 
-func parseFlags(args []string) config {
+func parseFlags(args []string) (conf config) {
 	var (
-		conf       config
 		decompress bool
 		help       bool
 	)

@@ -7,98 +7,63 @@ import (
 	"os"
 
 	"github.com/klauspost/pgzip"
-	"github.com/spf13/pflag"
-)
-
-const (
-	prog      = "pgzip"
-	usageHead = "Usage: " + prog + "\t(reads stdin, outputs to stdout)"
 )
 
 type config struct {
 	compress      bool
 	compressLevel int
+
+	help func()
 }
 
-func parseFlags(args []string) (conf config) {
-	var (
-		decompress bool
-		help       bool
-	)
-
-	flag := pflag.NewFlagSet("flags", pflag.ContinueOnError)
-	flag.SortFlags = false
-
-	flag.BoolVarP(&conf.compress, "compress", "z", true, "compress")
-	flag.BoolVarP(&decompress, "decompress", "d", false, "decompress")
-	flag.IntVarP(&conf.compressLevel, "level", "n", 6,
-		"compress level, -2..9")
-	flag.BoolVarP(&help, "help", "h", false,
-		"show this help and exit")
-	flag.Usage = func() {
-		fmt.Fprintln(flag.Output(), usageHead)
-		flag.PrintDefaults()
-	}
-
-	err := flag.Parse(args)
-	if err != nil {
-		die(2, err)
-	}
-	if len(flag.Args()) > 0 {
-		die(2, "unexpected args, use stdin/stdout")
-	}
-	if help {
-		flag.SetOutput(os.Stdout)
-		flag.Usage()
-		os.Exit(0)
-	}
-
-	if flag.Changed("compress") && flag.Changed("decompress") &&
-		conf.compress == decompress {
-		die(2, "conflicting flags -z and -d")
-	}
-	if flag.Changed("decompress") {
-		conf.compress = !decompress
-	}
-
-	return conf
-}
-
-func main() {
-	conf := parseFlags(os.Args[1:])
-
+func run(conf config) error {
 	switch {
 	case conf.compress:
 		w, err := pgzip.NewWriterLevel(os.Stdout, conf.compressLevel)
 		if err != nil {
-			die(1, "failed creating pgzip writer:", err)
+			return fmt.Errorf("failed creating pgzip writer: %w", err)
 		}
 		_, err = io.Copy(w, os.Stdin)
 		if err != nil {
-			die(1, "compress:", err)
+			return fmt.Errorf("compress: %w", err)
 		}
 		err = w.Close()
 		if err != nil {
-			die(1, "compress closing:", err)
+			return fmt.Errorf("compress closing: %w", err)
 		}
 
 	case !conf.compress:
 		r, err := pgzip.NewReader(os.Stdin)
 		if err != nil {
-			die(1, "failed creating pgzip reader:", err)
+			return fmt.Errorf("failed creating pgzip reader: %w", err)
 		}
 		defer r.Close()
 		_, err = io.Copy(os.Stdout, r)
 		if err != nil {
-			die(1, "decompress:", err)
+			return fmt.Errorf("decompress: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func main() {
+	conf, err := parseArgs(os.Args[1:])
+	if err != nil {
+		die(2, err)
+	}
+	if conf.help != nil {
+		conf.help()
+		os.Exit(0)
+	}
+
+	err = run(conf)
+	if err != nil {
+		die(1, err)
 	}
 }
 
-func die(exitcode int, msgs ...interface{}) {
-	if len(msgs) > 0 {
-		fmt.Fprint(os.Stderr, prog, ": ")
-		fmt.Fprintln(os.Stderr, msgs...)
-	}
-	os.Exit(exitcode)
+func die(code int, err error) {
+	fmt.Fprintln(os.Stderr, "pgzip:", err)
+	os.Exit(code)
 }

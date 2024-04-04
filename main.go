@@ -90,7 +90,7 @@ func main() {
 		defer r.Close()
 		_, err = io.Copy(os.Stdout, r)
 		if err != nil {
-			die(1, "decompress: %v", err)
+			die(1, "decompress:", err)
 		}
 	}
 }

@@ -9,17 +9,22 @@ import (
 	"github.com/klauspost/pgzip"
 )
 
-type config struct {
+type action struct {
 	compress      bool
 	compressLevel int
 
 	help func()
 }
 
-func run(conf config) error {
+var defaultAction = action{
+	compress:      true,
+	compressLevel: 6,
+}
+
+func run(a action) error {
 	switch {
-	case conf.compress:
-		w, err := pgzip.NewWriterLevel(os.Stdout, conf.compressLevel)
+	case a.compress:
+		w, err := pgzip.NewWriterLevel(os.Stdout, a.compressLevel)
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip writer: %w", err)
 		}
@@ -32,7 +37,7 @@ func run(conf config) error {
 			return fmt.Errorf("compress closing: %w", err)
 		}
 
-	case !conf.compress:
+	case !a.compress:
 		r, err := pgzip.NewReader(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip reader: %w", err)

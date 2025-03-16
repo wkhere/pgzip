@@ -1,1 +1,2 @@
 + accept file args, use '-' for stdin/stdout
+- check if pgzip.Reader needs safeClose

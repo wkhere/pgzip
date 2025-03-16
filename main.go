@@ -9,9 +9,14 @@ import (
 	"github.com/klauspost/pgzip"
 )
 
+const fileExt = ".gz"
+
 type action struct {
+	fileIn        string
+	fileOut       string
 	compress      bool
 	compressLevel int
+	force         bool
 
 	help func()
 }
@@ -21,14 +26,46 @@ var defaultAction = action{
 	compressLevel: 6,
 }
 
+func openIn(path string) (*os.File, error) {
+	if path == "-" {
+		return os.Stdin, nil
+	}
+	return os.Open(path)
+}
+
+func openOut(path string, force bool) (*os.File, error) {
+	if path == "-" {
+		return os.Stdout, nil
+	}
+	var wflag int
+	if force {
+		wflag = os.O_TRUNC
+	} else {
+		wflag = os.O_EXCL
+	}
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|wflag, 0644)
+}
+
 func run(a action) error {
+	in, err := openIn(a.fileIn)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
 	switch {
 	case a.compress:
-		w, err := pgzip.NewWriterLevel(os.Stdout, a.compressLevel)
+		out, err := openOut(a.fileOut, a.force)
+		if err != nil {
+			return err
+		}
+		w, err := pgzip.NewWriterLevel(out, a.compressLevel)
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip writer: %w", err)
 		}
-		_, err = io.Copy(w, os.Stdin)
+		defer safeClose(out, &err)
+
+		_, err = io.Copy(w, in)
 		if err != nil {
 			return fmt.Errorf("compress: %w", err)
 		}
@@ -38,12 +75,19 @@ func run(a action) error {
 		}
 
 	case !a.compress:
-		r, err := pgzip.NewReader(os.Stdin)
+		r, err := pgzip.NewReader(in)
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip reader: %w", err)
 		}
 		defer r.Close()
-		_, err = io.Copy(os.Stdout, r)
+
+		out, err := openOut(a.fileOut, a.force)
+		if err != nil {
+			return err
+		}
+		defer safeClose(out, &err)
+
+		_, err = io.Copy(out, r)
 		if err != nil {
 			return fmt.Errorf("decompress: %w", err)
 		}
@@ -65,6 +109,13 @@ func main() {
 	err = run(conf)
 	if err != nil {
 		die(1, err)
+	}
+}
+
+func safeClose(f *os.File, errp *error) {
+	cerr := f.Close()
+	if cerr != nil && *errp == nil {
+		*errp = cerr
 	}
 }
 

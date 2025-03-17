@@ -46,7 +46,7 @@ func openOut(path string, force bool) (*os.File, error) {
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|wflag, 0644)
 }
 
-func run(a action) error {
+func run(a action) (rerr error) {
 	in, err := openIn(a.fileIn)
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func run(a action) error {
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip writer: %w", err)
 		}
-		defer safeClose(out, &err)
+		defer safeClose(out, &rerr)
 
 		_, err = io.Copy(w, in)
 		if err != nil {
@@ -79,13 +79,13 @@ func run(a action) error {
 		if err != nil {
 			return fmt.Errorf("failed creating pgzip reader: %w", err)
 		}
-		defer r.Close()
+		defer safeClose(r, &rerr)
 
 		out, err := openOut(a.fileOut, a.force)
 		if err != nil {
 			return err
 		}
-		defer safeClose(out, &err)
+		defer safeClose(out, &rerr)
 
 		_, err = io.Copy(out, r)
 		if err != nil {
@@ -112,8 +112,8 @@ func main() {
 	}
 }
 
-func safeClose(f *os.File, errp *error) {
-	cerr := f.Close()
+func safeClose(c io.Closer, errp *error) {
+	cerr := c.Close()
 	if cerr != nil && *errp == nil {
 		*errp = cerr
 	}

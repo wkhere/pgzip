@@ -1,2 +1,11 @@
 + accept file args, use '-' for stdin/stdout
 + check if pgzip.Reader needs safeClose
+
+- args changes:
+  - treat all arg files as input, like classic gzip
+  - thus: guess output file (add/remove suffix, error if can't be guessed)
+  - output to stdout with -c
+    - with multiple input files, all inputs are processed into one output
+  - input from stdin if input given as '-'
+    - implies -c
+    - '-' can't be mixed with files
